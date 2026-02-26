@@ -1043,6 +1043,310 @@ body.light-mode .dash-tag.pink {
   background: rgba(0, 0, 0, 0.5);
 }
 
+/* ── Voice Assistant Tool Icon ───────────────────────────────── */
+.dash-tool-icon.green {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+}
+
+/* ── Voice Assistant Panel ───────────────────────────────────── */
+.voice-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  backdrop-filter: blur(8px);
+  animation: voiceFadeIn 0.25s ease;
+}
+
+@keyframes voiceFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.voice-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xl);
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 40px rgba(124, 58, 237, 0.15);
+  animation: voiceSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes voiceSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.voice-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.voice-panel-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.voice-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: none;
+  color: var(--txt-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+.voice-close-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Subject selector */
+.voice-subject-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.voice-subject-row label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--txt-secondary);
+  white-space: nowrap;
+}
+
+.voice-subject-select {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  color: var(--txt-primary);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--t-fast);
+}
+
+body.light-mode .voice-subject-select {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.voice-subject-select:focus {
+  border-color: var(--clr-purple);
+}
+
+/* Messages area */
+.voice-messages {
+  flex: 1;
+  min-height: 200px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.voice-empty {
+  color: var(--txt-muted);
+  text-align: center;
+  margin: auto;
+  font-size: 0.9rem;
+  padding: 40px 0;
+}
+
+.voice-msg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.voice-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.voice-msg.user .voice-msg-avatar {
+  background: rgba(124, 58, 237, 0.2);
+  color: #A78BFA;
+}
+
+.voice-msg.ai .voice-msg-avatar {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10B981;
+}
+
+.voice-msg-text {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--txt-primary);
+  max-width: 85%;
+}
+
+/* Transcript */
+.voice-transcript {
+  padding: 10px 24px;
+  font-size: 0.82rem;
+  color: var(--txt-secondary);
+  background: rgba(124, 58, 237, 0.06);
+  border-top: 1px solid var(--border-subtle);
+  font-style: italic;
+}
+
+.voice-transcript-label {
+  color: var(--clr-purple-2);
+  font-weight: 600;
+  font-style: normal;
+}
+
+/* Speaking indicator */
+.voice-speaking {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 24px;
+  font-size: 0.78rem;
+  color: var(--txt-muted);
+}
+
+.voice-wave-bar {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--clr-purple);
+  animation: voiceWave 0.8s ease-in-out infinite;
+}
+
+.voice-wave-bar:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.voice-wave-bar:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.voice-wave-bar:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+.voice-wave-bar:nth-child(5) {
+  animation-delay: 0.4s;
+}
+
+@keyframes voiceWave {
+
+  0%,
+  100% {
+    height: 6px;
+    opacity: 0.5;
+  }
+
+  50% {
+    height: 18px;
+    opacity: 1;
+  }
+}
+
+/* Mic button */
+.voice-mic-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 24px 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.voice-mic-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: var(--grad-main);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+  transition: transform var(--t-fast), box-shadow var(--t-fast);
+}
+
+.voice-mic-btn:hover {
+  transform: scale(1.06);
+  box-shadow: 0 8px 28px rgba(124, 58, 237, 0.55);
+}
+
+.voice-mic-btn.listening {
+  animation: micPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5);
+}
+
+@keyframes micPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5);
+  }
+
+  70% {
+    box-shadow: 0 0 0 16px rgba(124, 58, 237, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0);
+  }
+}
+
+.voice-mic-label {
+  font-size: 0.78rem;
+  color: var(--txt-muted);
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .dash-drafts-grid {

@@ -2,7 +2,7 @@
    AskMyNotes – globals.css  (Next.js)
    Design System: Purple/Pink gradient, Glassmorphism, Dark-first
    ================================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesk:opsz,wght@12..96,200..800&family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ── 1. CSS Custom Properties ────────────────────────────────── */
 :root {
@@ -28,7 +28,7 @@
   --r-lg: 24px;
   --r-xl: 32px;
   --section-py: 120px;
-  --font-sans: 'Bricolage Grotesk', 'Outfit', 'Inter', sans-serif;
+  --font-sans: 'Bricolage Grotesque', 'Outfit', 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   --t-fast: 150ms ease;
   --t-base: 250ms ease;

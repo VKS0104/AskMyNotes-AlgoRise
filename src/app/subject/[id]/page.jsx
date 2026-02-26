@@ -15,70 +15,197 @@ export default function SubjectPage() {
     const [showTextModal, setShowTextModal] = useState(false);
     const [textInput, setTextInput] = useState('');
     const [materialType, setMaterialType] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState('');
 
     const [messages, setMessages] = useState([]);
     const [prompt, setPrompt] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
 
+    // Study mode state
+    const [studyData, setStudyData] = useState(null);
+    const [isStudyLoading, setIsStudyLoading] = useState(false);
+    const [showStudyMode, setShowStudyMode] = useState(false);
+    const [showStudyOptions, setShowStudyOptions] = useState(false);
+    const [studyType, setStudyType] = useState(null); // 'mcq' or 'short'
+
     const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
+
+    // Restore persisted messages on mount
+    useEffect(() => {
+        const savedMsgs = localStorage.getItem(`askmynotes_chat_${subjectName}`);
+        const savedUploaded = localStorage.getItem(`askmynotes_uploaded_${subjectName}`);
+        if (savedMsgs) {
+            try {
+                const parsed = JSON.parse(savedMsgs);
+                if (parsed.length > 0) {
+                    setMessages(parsed);
+                    setMaterialUploaded(true);
+                }
+            } catch { }
+        }
+        if (savedUploaded === 'true') {
+            setMaterialUploaded(true);
+        }
+    }, [subjectName]);
+
+    // Persist messages whenever they change
+    useEffect(() => {
+        if (messages.length > 0) {
+            localStorage.setItem(`askmynotes_chat_${subjectName}`, JSON.stringify(messages));
+        }
+    }, [messages, subjectName]);
+
+    // Persist upload status
+    useEffect(() => {
+        if (materialUploaded) {
+            localStorage.setItem(`askmynotes_uploaded_${subjectName}`, 'true');
+        }
+    }, [materialUploaded, subjectName]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleTextUpload = () => {
+    // ── Upload: text notes ──
+    const handleTextUpload = async () => {
         if (!textInput.trim()) return;
-        setMaterialType('text');
-        setMaterialUploaded(true);
-        setShowTextModal(false);
-        setMessages([{
-            id: 1,
-            role: 'ai',
-            text: `I've processed your text notes for **${subjectName}**. I'm now trained on your material and ready to answer questions. Ask me anything!`
-        }]);
+        setIsUploading(true);
+        setUploadError('');
+
+        try {
+            const blob = new Blob([textInput], { type: 'text/plain' });
+            const file = new File([blob], `${subjectName}_notes.txt`, { type: 'text/plain' });
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('subject', subjectName);
+
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+            setMaterialType('text');
+            setMaterialUploaded(true);
+            setShowTextModal(false);
+            setMessages([{
+                id: 1,
+                role: 'ai',
+                text: `I've processed your text notes for **${subjectName}** (${data.chunksCount} chunks). I'm now trained on your material and ready to answer questions. Ask me anything!`
+            }]);
+        } catch (err) {
+            setUploadError(err.message);
+        } finally {
+            setIsUploading(false);
+        }
     };
 
-    const handleFileUpload = (e) => {
+    // ── Upload: file (PDF/txt) ──
+    const handleFileUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        setMaterialType('pdf');
-        setMaterialUploaded(true);
+        setIsUploading(true);
+        setUploadError('');
         setShowUploadOptions(false);
-        setMessages([{
-            id: 1,
-            role: 'ai',
-            text: `I've processed your file **"${file.name}"** for **${subjectName}**. I'm now trained on your material and ready to answer questions. Ask me anything!`
-        }]);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('subject', subjectName);
+
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+            setMaterialType('pdf');
+            setMaterialUploaded(true);
+            setMessages([{
+                id: 1,
+                role: 'ai',
+                text: `I've processed your file **"${file.name}"** for **${subjectName}** (${data.chunksCount} chunks). I'm now trained on your material and ready to answer questions. Ask me anything!`
+            }]);
+        } catch (err) {
+            setUploadError(err.message);
+            setShowUploadOptions(true);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
 
-    const handleSend = () => {
+    // ── Ask: question ──
+    const handleSend = async () => {
         if (!prompt.trim() || isLoading) return;
         const userMsg = { id: Date.now(), role: 'user', text: prompt };
         setMessages((prev) => [...prev, userMsg]);
         setPrompt('');
         setIsLoading(true);
+        setShowStudyMode(false);
 
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
         }
 
-        setTimeout(() => {
-            const responses = [
-                `Based on your uploaded notes for **${subjectName}**, here's what I found:\n\nThis topic covers several key concepts. The material emphasizes understanding fundamentals before moving to advanced applications. Let me know if you'd like me to elaborate on any specific section.`,
-                `Great question! From your **${subjectName}** notes, the answer involves multiple factors:\n\n1. The primary concept relates to the core principles discussed in your material\n2. There are practical applications mentioned in your notes\n3. The key takeaway is the relationship between theory and practice\n\nWould you like me to generate flashcards on this topic?`,
-                `According to your **${subjectName}** material, this is an important concept. Your notes cover this in detail, highlighting the key definitions and examples. I can help you create practice questions if you'd like to test your understanding.`,
-            ];
+        try {
+            const res = await fetch('/api/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: prompt, subject: subjectName }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || 'Failed to get answer');
+
             const aiMsg = {
                 id: Date.now() + 1,
                 role: 'ai',
-                text: responses[Math.floor(Math.random() * responses.length)]
+                text: data.answer,
+                confidence: data.confidence,
+                supportingSnippets: data.supportingSnippets,
+                citations: data.citations,
             };
             setMessages((prev) => [...prev, aiMsg]);
+        } catch (err) {
+            const errMsg = {
+                id: Date.now() + 1,
+                role: 'ai',
+                text: `Sorry, something went wrong: ${err.message}`,
+            };
+            setMessages((prev) => [...prev, errMsg]);
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
+    };
+
+    // ── Study mode ──
+    const handleStudyMode = (type) => {
+        setStudyType(type);
+        setShowStudyOptions(false);
+        setShowStudyMode(true);
+        setIsStudyLoading(true);
+        setStudyData(null);
+
+        fetch('/api/study', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject: subjectName, type }),
+        })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) throw new Error(data.error || 'Failed to generate study material');
+                setStudyData(data);
+            })
+            .catch(err => {
+                setStudyData({ error: err.message });
+            })
+            .finally(() => {
+                setIsStudyLoading(false);
+            });
     };
 
     const handleKeyDown = (e) => {
@@ -106,8 +233,22 @@ export default function SubjectPage() {
     };
 
     const handleSuggestion = (text) => {
+        if (text === 'Create practice MCQs') {
+            setShowStudyOptions(true);
+            return;
+        }
         setPrompt(text);
         textareaRef.current?.focus();
+    };
+
+    // ── Confidence badge color ──
+    const getConfidenceStyle = (confidence) => {
+        switch (confidence) {
+            case 'High': return { background: '#10b981', color: '#fff' };
+            case 'Medium': return { background: '#f59e0b', color: '#fff' };
+            case 'Low': return { background: '#ef4444', color: '#fff' };
+            default: return {};
+        }
     };
 
     return (
@@ -135,7 +276,13 @@ export default function SubjectPage() {
                 {!materialUploaded ? (
                     /* ── Upload State ── */
                     <div className="subject-upload-area">
-                        {!showUploadOptions ? (
+                        {isUploading ? (
+                            <div className="subject-upload-loading">
+                                <div className="subject-upload-spinner"></div>
+                                <div className="subject-upload-title">Processing your material...</div>
+                                <div className="subject-upload-subtitle">Chunking and embedding your notes into the vector store</div>
+                            </div>
+                        ) : !showUploadOptions ? (
                             <>
                                 <button className="subject-upload-box" onClick={() => setShowUploadOptions(true)}>
                                     <div className="subject-upload-icon">
@@ -147,6 +294,7 @@ export default function SubjectPage() {
                                     <div className="subject-upload-title">Upload your study material</div>
                                     <div className="subject-upload-subtitle">Upload text notes or PDF files to train AskMyNotes on your {subjectName} content</div>
                                 </div>
+                                {uploadError && <div className="subject-upload-error">{uploadError}</div>}
                             </>
                         ) : (
                             <>
@@ -167,6 +315,7 @@ export default function SubjectPage() {
                                     </button>
                                     <input ref={fileInputRef} type="file" accept=".pdf,.txt,.doc,.docx" style={{ display: 'none' }} onChange={handleFileUpload} />
                                 </div>
+                                {uploadError && <div className="subject-upload-error">{uploadError}</div>}
                                 <button
                                     style={{ background: 'none', border: 'none', color: 'var(--txt-muted)', cursor: 'pointer', fontSize: '0.8rem', marginTop: '8px', fontFamily: 'var(--font-sans)' }}
                                     onClick={() => setShowUploadOptions(false)}
@@ -179,7 +328,7 @@ export default function SubjectPage() {
                 ) : (
                     /* ── Chat State ── */
                     <div className="subject-chat-container">
-                        {messages.length <= 1 && (
+                        {messages.length <= 1 && !showStudyMode && (
                             <div className="subject-chat-greeting">
                                 <div className="subject-material-badge">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
@@ -194,13 +343,95 @@ export default function SubjectPage() {
                             </div>
                         )}
 
+                        {/* Study Mode Options */}
+                        {showStudyOptions && !showStudyMode && (
+                            <div className="subject-study-options">
+                                <h3>📚 Choose Study Mode</h3>
+                                <p className="subject-study-options-sub">Select the type of practice questions to generate</p>
+                                <div className="subject-study-options-grid">
+                                    <button className="subject-study-option-card" onClick={() => handleStudyMode('mcq')}>
+                                        <div className="subject-study-option-icon mcq">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                                        </div>
+                                        <div className="subject-study-option-title">MCQ Practice</div>
+                                        <div className="subject-study-option-desc">5 multiple-choice questions with explanations</div>
+                                    </button>
+                                    <button className="subject-study-option-card" onClick={() => handleStudyMode('short')}>
+                                        <div className="subject-study-option-icon short">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                        </div>
+                                        <div className="subject-study-option-title">Short Q&A</div>
+                                        <div className="subject-study-option-desc">3 short-answer questions with detailed answers</div>
+                                    </button>
+                                </div>
+                                <button className="subject-study-options-back" onClick={() => setShowStudyOptions(false)}>← Back to chat</button>
+                            </div>
+                        )}
+
+                        {/* Study Mode Panel */}
+                        {showStudyMode && (
+                            <div className="subject-study-panel">
+                                <div className="subject-study-header">
+                                    <h2>📚 {studyType === 'mcq' ? 'MCQ Practice' : 'Short Q&A'} — {subjectName}</h2>
+                                    <button className="subject-study-close" onClick={() => { setShowStudyMode(false); setShowStudyOptions(false); }}>✕</button>
+                                </div>
+                                {isStudyLoading ? (
+                                    <div className="subject-study-loading">
+                                        <div className="subject-upload-spinner"></div>
+                                        <p>Generating {studyType === 'mcq' ? '5 MCQs' : '3 short questions'} from your notes...</p>
+                                    </div>
+                                ) : studyData?.error ? (
+                                    <div className="subject-upload-error">{studyData.error}</div>
+                                ) : studyData ? (
+                                    <div className="subject-study-content">
+                                        {studyData.mcqs?.length > 0 && (
+                                            <div className="subject-study-section">
+                                                <h3>Multiple Choice Questions</h3>
+                                                {studyData.mcqs.map((mcq, i) => (
+                                                    <MCQCard key={i} mcq={mcq} index={i} />
+                                                ))}
+                                            </div>
+                                        )}
+                                        {studyData.shortQuestions?.length > 0 && (
+                                            <div className="subject-study-section">
+                                                <h3>Short Answer Questions</h3>
+                                                {studyData.shortQuestions.map((sq, i) => (
+                                                    <ShortAnswerCard key={i} sq={sq} index={i} />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
+
                         <div className="subject-messages">
                             {messages.map((msg) => (
                                 <div key={msg.id} className={`subject-msg ${msg.role}`}>
                                     <div className={`subject-msg-avatar ${msg.role === 'ai' ? 'ai' : 'human'}`}>
                                         {msg.role === 'ai' ? '✦' : 'U'}
                                     </div>
-                                    <div className="subject-msg-bubble">{msg.text}</div>
+                                    <div className="subject-msg-content">
+                                        <div className="subject-msg-bubble">{msg.text}</div>
+                                        {/* Confidence badge */}
+                                        {msg.confidence && (
+                                            <span className="subject-confidence-badge" style={getConfidenceStyle(msg.confidence)}>
+                                                {msg.confidence} Confidence
+                                            </span>
+                                        )}
+                                        {/* Citation pills */}
+                                        {msg.citations && msg.citations.length > 0 && (
+                                            <div className="subject-citations">
+                                                {msg.citations.map((c, i) => (
+                                                    <span key={i} className="subject-citation-pill">📄 {c}</span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {/* Collapsible supporting snippets */}
+                                        {msg.supportingSnippets && msg.supportingSnippets.length > 0 && (
+                                            <SnippetsCollapsible snippets={msg.supportingSnippets} />
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                             {isLoading && (
@@ -216,7 +447,7 @@ export default function SubjectPage() {
                             <div ref={messagesEndRef} />
                         </div>
 
-                        {messages.length <= 1 && (
+                        {messages.length <= 1 && !showStudyMode && (
                             <div className="subject-suggestions">
                                 <button className="subject-suggestion-chip" onClick={() => handleSuggestion('Summarize the key concepts')}>📝 Summarize key concepts</button>
                                 <button className="subject-suggestion-chip" onClick={() => handleSuggestion('Generate flashcards from my notes')}>🃏 Generate flashcards</button>
@@ -242,6 +473,9 @@ export default function SubjectPage() {
                                     <div className="subject-prompt-left">
                                         <button className="subject-prompt-icon-btn" title="Attach file" onClick={() => fileInputRef.current?.click()}>
                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                        </button>
+                                        <button className="subject-prompt-icon-btn" title="Study Mode" onClick={() => setShowStudyOptions(true)} style={{ fontSize: '16px' }}>
+                                            📚
                                         </button>
                                     </div>
                                     <div className="subject-prompt-right">
@@ -272,9 +506,92 @@ export default function SubjectPage() {
                         />
                         <div className="subject-text-modal-actions">
                             <button className="dash-btn-cancel" onClick={() => setShowTextModal(false)}>Cancel</button>
-                            <button className="dash-btn-submit" onClick={handleTextUpload}>Upload Notes</button>
+                            <button className="dash-btn-submit" onClick={handleTextUpload} disabled={isUploading}>
+                                {isUploading ? 'Processing...' : 'Upload Notes'}
+                            </button>
                         </div>
+                        {uploadError && <div className="subject-upload-error" style={{ marginTop: '8px' }}>{uploadError}</div>}
                     </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Collapsible Snippets Component ──
+function SnippetsCollapsible({ snippets }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="subject-snippets-wrap">
+            <button className="subject-snippets-toggle" onClick={() => setOpen(!open)}>
+                {open ? '▾' : '▸'} Supporting Snippets ({snippets.length})
+            </button>
+            {open && (
+                <div className="subject-snippets-list">
+                    {snippets.map((s, i) => (
+                        <div key={i} className="subject-snippet-item">
+                            <span className="subject-snippet-label">Snippet {i + 1}</span>
+                            <p>{s}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── MCQ Card Component ──
+function MCQCard({ mcq, index }) {
+    const [selected, setSelected] = useState(null);
+    const [revealed, setRevealed] = useState(false);
+
+    const handleSelect = (key) => {
+        if (revealed) return;
+        setSelected(key);
+        setRevealed(true);
+    };
+
+    return (
+        <div className="subject-mcq-card">
+            <div className="subject-mcq-question">Q{index + 1}. {mcq.question}</div>
+            <div className="subject-mcq-options">
+                {Object.entries(mcq.options).map(([key, val]) => {
+                    let cls = 'subject-mcq-option';
+                    if (revealed) {
+                        if (key === mcq.correct) cls += ' correct';
+                        else if (key === selected) cls += ' wrong';
+                    }
+                    return (
+                        <button key={key} className={cls} onClick={() => handleSelect(key)}>
+                            <span className="subject-mcq-key">{key}</span> {val}
+                        </button>
+                    );
+                })}
+            </div>
+            {revealed && (
+                <div className="subject-mcq-explanation">
+                    <strong>Explanation:</strong> {mcq.explanation}
+                    <div className="subject-mcq-citation">📄 {mcq.citation}</div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Short Answer Card Component ──
+function ShortAnswerCard({ sq, index }) {
+    const [revealed, setRevealed] = useState(false);
+
+    return (
+        <div className="subject-sa-card">
+            <div className="subject-sa-question">Q{index + 1}. {sq.question}</div>
+            <button className="subject-sa-reveal" onClick={() => setRevealed(!revealed)}>
+                {revealed ? 'Hide Answer' : 'Show Answer'}
+            </button>
+            {revealed && (
+                <div className="subject-sa-answer">
+                    <p>{sq.answer}</p>
+                    <div className="subject-mcq-citation">📄 {sq.citation}</div>
                 </div>
             )}
         </div>

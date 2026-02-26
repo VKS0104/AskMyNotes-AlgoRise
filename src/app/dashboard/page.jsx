@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/dashboard/Sidebar';
 import Header from '@/components/dashboard/Header';
@@ -16,6 +16,16 @@ export default function DashboardPage() {
     const [newName, setNewName] = useState('');
     const [showProfile, setShowProfile] = useState(false);
     const [user, setUser] = useState(null);
+
+    // Voice assistant state
+    const [showVoicePanel, setShowVoicePanel] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [voiceTranscript, setVoiceTranscript] = useState('');
+    const [voiceMessages, setVoiceMessages] = useState([]);
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [voiceSubject, setVoiceSubject] = useState('');
+    const recognitionRef = useRef(null);
+    const synthRef = useRef(null);
 
     const supabase = createClient();
 
@@ -70,6 +80,84 @@ export default function DashboardPage() {
         if (canCreate) setIsCreating(true);
     };
 
+    // ── Voice Assistant ──
+    const startListening = () => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert('Speech recognition is not supported in this browser. Please use Chrome.');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+                .map(r => r[0].transcript)
+                .join('');
+            setVoiceTranscript(transcript);
+
+            if (event.results[0].isFinal) {
+                handleVoiceQuestion(transcript);
+            }
+        };
+
+        recognition.onend = () => setIsListening(false);
+        recognition.onerror = () => setIsListening(false);
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        setIsListening(true);
+    };
+
+    const stopListening = () => {
+        recognitionRef.current?.stop();
+        setIsListening(false);
+    };
+
+    const handleVoiceQuestion = async (question) => {
+        if (!question.trim()) return;
+        setVoiceMessages(prev => [...prev, { role: 'user', text: question }]);
+        setVoiceTranscript('');
+
+        const sub = voiceSubject || subjects[0]?.title;
+        if (!sub) {
+            const msg = 'Please create a subject and upload material first.';
+            setVoiceMessages(prev => [...prev, { role: 'ai', text: msg }]);
+            speakText(msg);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, subject: sub }),
+            });
+            const data = await res.json();
+            const answer = data.answer || data.error || 'No answer found.';
+            setVoiceMessages(prev => [...prev, { role: 'ai', text: answer }]);
+            speakText(answer);
+        } catch {
+            const errMsg = 'Sorry, I had trouble processing that. Please try again.';
+            setVoiceMessages(prev => [...prev, { role: 'ai', text: errMsg }]);
+            speakText(errMsg);
+        }
+    };
+
+    const speakText = (text) => {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.95;
+        utterance.pitch = 1;
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+    };
+
     return (
         <div className="dashboard-layout">
             <Sidebar
@@ -87,24 +175,6 @@ export default function DashboardPage() {
                         <div>
                             <h1 className="dash-page-title">My Projects</h1>
                             <p className="dash-page-subtitle">Let&apos;s get started and take the first step towards becoming a more productive and organized you!</p>
-                        </div>
-                        <div className="dash-page-meta">
-                            <div className="dash-meta-block">
-                                <label>Visibility</label>
-                                <div className="dash-meta-value">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-                                    Private Projects
-                                </div>
-                            </div>
-                            <div className="dash-meta-block">
-                                <label>Members</label>
-                                <div className="dash-members-stack">
-                                    <div className="dash-member-avatar purple">AS</div>
-                                    <div className="dash-member-avatar pink">MJ</div>
-                                    <div className="dash-member-avatar blue">KS</div>
-                                    <div className="dash-member-avatar more">+8</div>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -145,6 +215,15 @@ export default function DashboardPage() {
                             <div>
                                 <div className="dash-tool-name">Journal</div>
                                 <div className="dash-tool-desc">Prompts &amp; questions</div>
+                            </div>
+                        </div>
+                        <div className="dash-tool-card" onClick={() => setShowVoicePanel(true)} style={{ cursor: 'pointer' }}>
+                            <div className="dash-tool-icon green">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+                            </div>
+                            <div>
+                                <div className="dash-tool-name">AI Voice Assistant</div>
+                                <div className="dash-tool-desc">Ask your notes by voice</div>
                             </div>
                         </div>
                     </div>
@@ -326,6 +405,78 @@ export default function DashboardPage() {
                                 <div className="dash-profile-info-item"><label>Questions Asked</label><span>156</span></div>
                                 <div className="dash-profile-info-item"><label>Joined</label><span>{user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2025'}</span></div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Voice Assistant Panel */}
+            {showVoicePanel && (
+                <div className="voice-overlay" onClick={() => setShowVoicePanel(false)}>
+                    <div className="voice-panel" onClick={(e) => e.stopPropagation()}>
+                        <div className="voice-panel-header">
+                            <h2>🎙️ AI Voice Assistant</h2>
+                            <button className="voice-close-btn" onClick={() => { setShowVoicePanel(false); stopListening(); window.speechSynthesis?.cancel(); }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                        </div>
+
+                        {/* Subject selector */}
+                        <div className="voice-subject-row">
+                            <label>Subject:</label>
+                            <select
+                                className="voice-subject-select"
+                                value={voiceSubject || subjects[0]?.title || ''}
+                                onChange={(e) => setVoiceSubject(e.target.value)}
+                            >
+                                {subjects.length === 0 && <option value="">No subjects</option>}
+                                {subjects.map((s) => (
+                                    <option key={s.id} value={s.title}>{s.title}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Messages */}
+                        <div className="voice-messages">
+                            {voiceMessages.length === 0 && (
+                                <div className="voice-empty">Tap the mic and ask a question about your notes</div>
+                            )}
+                            {voiceMessages.map((msg, i) => (
+                                <div key={i} className={`voice-msg ${msg.role}`}>
+                                    <div className="voice-msg-avatar">{msg.role === 'ai' ? '✦' : 'U'}</div>
+                                    <div className="voice-msg-text">{msg.text}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Transcript */}
+                        {voiceTranscript && (
+                            <div className="voice-transcript">
+                                <span className="voice-transcript-label">Hearing:</span> {voiceTranscript}
+                            </div>
+                        )}
+
+                        {/* Speaking indicator */}
+                        {isSpeaking && (
+                            <div className="voice-speaking">
+                                <div className="voice-wave-bar"></div>
+                                <div className="voice-wave-bar"></div>
+                                <div className="voice-wave-bar"></div>
+                                <div className="voice-wave-bar"></div>
+                                <div className="voice-wave-bar"></div>
+                                <span>Speaking...</span>
+                            </div>
+                        )}
+
+                        {/* Mic button */}
+                        <div className="voice-mic-wrap">
+                            <button
+                                className={`voice-mic-btn ${isListening ? 'listening' : ''}`}
+                                onClick={isListening ? stopListening : startListening}
+                            >
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+                            </button>
+                            <span className="voice-mic-label">{isListening ? 'Listening... tap to stop' : 'Tap to speak'}</span>
                         </div>
                     </div>
                 </div>
