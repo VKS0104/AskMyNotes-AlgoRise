@@ -3,7 +3,9 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Document } from "@langchain/core/documents";
 import { addDocuments } from "@/lib/vectorStore";
 import { createClient } from "@/utils/supabase/server";
-import pdf from "pdf-parse/lib/pdf-parse.js";
+import pdf from "pdf-parse";
+
+export const maxDuration = 60;
 
 export async function POST(request) {
     try {
@@ -79,7 +81,7 @@ export async function POST(request) {
     } catch (error) {
         console.error("Upload error:", error);
         return NextResponse.json(
-            { error: "Failed to upload and process document" },
+            { error: `Upload failed: ${error.message}` },
             { status: 500 }
         );
     }
