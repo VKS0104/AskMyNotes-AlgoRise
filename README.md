@@ -253,7 +253,3 @@ All routes are **auth-gated** — they verify the Supabase session and scope que
 MIT
 
 ---
-
-<p align="center">
-  Built with ☕ and Gemini by <strong>Ved Kumar Singh</strong>
-</p>
